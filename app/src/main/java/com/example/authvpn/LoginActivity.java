@@ -18,9 +18,12 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.google.gson.Gson;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.example.authvpn.SingletonRequest.SingletonRequest;
+
+import java.io.UnsupportedEncodingException;
 
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener {
     String url = "http://10.0.2.2:8000/api/";
@@ -94,17 +97,31 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 }, new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        Log.e("Error", error.getMessage());
-                        //Si mi api devuelve un error lo muestro en un dialogo
-                        if (error.toString().contains("error")) {
-                            AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                            builder.setMessage(error.getMessage().toString())
-                                    .setTitle("Error")
-                                    .setPositiveButton("Ok", null);
-                            builder.create().show();
-                        }
+                      if(error.networkResponse.statusCode == 400) {
+                          try {
+                              String responseBody = new String(error.networkResponse.data, "utf-8");
+                                JSONObject data = new JSONObject(responseBody);
+                                String message = data.getString("error");
+                              AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
+                              builder.setMessage(message)
+                                      .setTitle("Error")
+                                      .setPositiveButton("Ok", null);
+                              builder.create().show();
+                          }catch(JSONException e){
+                              Log.e("Error", e.getMessage());
+                          } catch (UnsupportedEncodingException e) {
+                              throw new RuntimeException(e);
+                          }
+                      }else{
+                          AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
+                          builder.setMessage("Error: Has not been possible to connect to the server. Please try again later.")
+                                  .setTitle("Error")
+                                  .setPositiveButton("Ok", null);
+                          builder.create().show();
+                      }
                     }
                 });
+
                 SingletonRequest.getInstance(this).addToRequestQueue(jsonObjectRequest);
             }
 
