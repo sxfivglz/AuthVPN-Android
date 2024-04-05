@@ -21,12 +21,13 @@ import com.google.gson.Gson;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.example.authvpn.SingletonRequest.SingletonRequest;
 
-import java.io.UnsupportedEncodingException;
-
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener {
-    String url = "http://10.0.2.2:8000/api/";
+    String url = "http://192.168.1.2/api/";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,42 +36,45 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
 
         Button btnLogin = findViewById(R.id.btnlogin);
         btnLogin.setOnClickListener(this);
-
-
     }
-
 
     @Override
     public void onClick(View v) {
+        EditText txtEmail = findViewById(R.id.email);
+        EditText txtPassword = findViewById(R.id.password);
+        String email = txtEmail.getText().toString();
+        String password = txtPassword.getText().toString();
+
+        // Validación de correo electrónico
+        if (!isValidEmail(email)) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
+            builder.setMessage("Please enter a valid email.")
+                    .setTitle("Error")
+                    .setPositiveButton("Ok", null);
+            builder.create().show();
+            return;
+        }
+
+        // Validación de campos vacíos
+        if (email.isEmpty() || password.isEmpty()) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
+            builder.setMessage("Email and password are required.")
+                    .setTitle("Error")
+                    .setPositiveButton("Ok", null);
+            builder.create().show();
+            return;
+        }
+
+        JSONObject jsonBody = new JSONObject();
         try {
-            EditText txtEmail = findViewById(R.id.email);
-            EditText txtPassword = findViewById(R.id.password);
-            String email = txtEmail.getText().toString();
-            String password = txtPassword.getText().toString();
-            if (email.isEmpty() && password.isEmpty()) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                builder.setMessage("Email and password are required.")
-                        .setTitle("Error")
-                        .setPositiveButton("Ok", null);
-                builder.create().show();
-                return;
-            } else if (email.isEmpty()) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                builder.setMessage("Email is required.")
-                        .setTitle("Error")
-                        .setPositiveButton("Ok", null);
-                builder.create().show();
-            } else if (password.isEmpty()) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                builder.setMessage("Password is required.")
-                        .setTitle("Error")
-                        .setPositiveButton("Ok", null);
-                builder.create().show();
-            } else {
-                JSONObject jsonBody = new JSONObject();
-                jsonBody.put("email", email);
-                jsonBody.put("password", password);
-                JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, url + "login", jsonBody, new Response.Listener<JSONObject>() {
+            jsonBody.put("email", email);
+            jsonBody.put("password", password);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, url + "login", jsonBody,
+                new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
                         try {
@@ -85,56 +89,52 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                             startActivity(intent);
                         } catch (Exception e) {
                             Log.e("Error", e.getMessage());
-                            if (response.toString().contains("error")) {
-                                AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                                builder.setMessage(response.toString())
-                                        .setTitle("Error")
-                                        .setPositiveButton("Ok", null);
-                                builder.create().show();
-                            }
+                            showErrorDialog("Error: " + e.getMessage());
                         }
                     }
-                }, new Response.ErrorListener() {
+                },
+                new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                      if(error.networkResponse.statusCode == 400) {
-                          try {
-                              String responseBody = new String(error.networkResponse.data, "utf-8");
+                        if (error.networkResponse != null && error.networkResponse.statusCode == 400) {
+                            try {
+                                String responseBody = new String(error.networkResponse.data, "utf-8");
                                 JSONObject data = new JSONObject(responseBody);
-                                String message = data.getString("error");
-                              AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                              builder.setMessage(message)
-                                      .setTitle("Error")
-                                      .setPositiveButton("Ok", null);
-                              builder.create().show();
-                          }catch(JSONException e){
-                              Log.e("Error", e.getMessage());
-                          } catch (UnsupportedEncodingException e) {
-                              throw new RuntimeException(e);
-                          }
-                      }else{
-                          AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                          builder.setMessage("Error: Has not been possible to connect to the server. Please try again later.")
-                                  .setTitle("Error")
-                                  .setPositiveButton("Ok", null);
-                          builder.create().show();
-                      }
+                                String errorMessage = data.getString("error");
+                                if (errorMessage.equalsIgnoreCase("Access denied")) {
+                                    showErrorDialog("Access Denied: You do not have permission to access the VPN.");
+                                } else {
+                                    showErrorDialog(errorMessage);
+                                }
+                            } catch (Exception e) {
+                                Log.e("Error", e.getMessage());
+                                showErrorDialog("Error: " + e.getMessage());
+                            }
+                        } else {
+                            showErrorDialog("Error: Has not been possible to connect to the server. Please try again later.");
+                        }
                     }
                 });
 
-                SingletonRequest.getInstance(this).addToRequestQueue(jsonObjectRequest);
-            }
-
-            }catch(Exception e){
-                Log.e("Error", e.getMessage());
-                AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
-                builder.setMessage("Error: Has not been possible to connect to the server. Please try again later.")
-                        .setTitle("Error")
-                        .setPositiveButton("Ok", null);
-                builder.create().show();
-            }
-        }
 
 
+        SingletonRequest.getInstance(this).addToRequestQueue(jsonObjectRequest);
+    }
 
+    // Método para validar el formato de correo electrónico
+    private boolean isValidEmail(String email) {
+        Pattern pattern = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(\\.[a-zA-Z]{2,})?");
+        Matcher matcher = pattern.matcher(email);
+        return matcher.matches();
+
+    }
+
+    // Método para mostrar un diálogo de error
+    private void showErrorDialog(String message) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(LoginActivity.this);
+        builder.setMessage(message)
+                .setTitle("Error")
+                .setPositiveButton("Ok", null);
+        builder.create().show();
+    }
 }
