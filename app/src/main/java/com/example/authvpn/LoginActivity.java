@@ -87,6 +87,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                             editor.apply();
                             Intent intent = new Intent(LoginActivity.this, RequestCodeActivity.class);
                             startActivity(intent);
+                            finish();
                         } catch (Exception e) {
                             Log.e("Error", e.getMessage());
                             showErrorDialog("Error: " + e.getMessage());
@@ -123,9 +124,11 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
 
     // Método para validar el formato de correo electrónico
     private boolean isValidEmail(String email) {
-        Pattern pattern = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(\\.[a-zA-Z]{2,})?");
+        String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+        Pattern pattern = Pattern.compile(emailRegex);
         Matcher matcher = pattern.matcher(email);
         return matcher.matches();
+
 
     }
 
