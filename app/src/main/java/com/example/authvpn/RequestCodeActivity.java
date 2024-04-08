@@ -44,9 +44,7 @@ public class RequestCodeActivity extends AppCompatActivity implements View.OnCli
             String admin_code = txtCode.getText().toString();
 
             // Validación de longitud y caracteres
-            if (admin_code.length() != 4 || !admin_code.matches("[0-9]+")) {
-                showErrorDialog("Code must be 4 digits long and contain only numbers.");
-                return;
+            if (admin_code.length() != 4 || !admin_code.matches("[0-9]+") || admin_code.isEmpty()) {
             } else {
                 // Resto del código para enviar la solicitud al servidor
                 JSONObject jsonBody = new JSONObject();
@@ -66,6 +64,18 @@ public class RequestCodeActivity extends AppCompatActivity implements View.OnCli
                     @Override
                     public void onResponse(JSONObject response) {
                         try {
+                            if (response == null) {
+                                showErrorDialog("Invalid response from server.");
+                                return;
+                            }
+
+                            // Check if the response contains "error" field with value "Invalid code"
+                            if (response.has("error") && response.getString("error").equals("Invalid code")) {
+                                showErrorDialog("Invalid code.");
+                                return;
+                            }
+
+                            // Rest of your response handling logic
                             Gson gson = new Gson();
                             String json = response.toString();
                             Code authResponse = gson.fromJson(json, Code.class);
@@ -84,13 +94,38 @@ public class RequestCodeActivity extends AppCompatActivity implements View.OnCli
                 }, new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        String errorMessage = "Unknown error occurred.";
-                        if (error != null && error.getMessage() != null) {
-                            errorMessage = error.getMessage();
+                        // Check if the error is due to a 400 Bad Request
+                        if (error.networkResponse != null && error.networkResponse.statusCode == 400) {
+                            try {
+                                // Parse the error body
+                                String errorBody = new String(error.networkResponse.data, "UTF-8");
+                                JSONObject jsonObject = new JSONObject(errorBody);
+
+                                // Check if the error message is "Invalid code"
+                                if (jsonObject.has("error") && jsonObject.getString("error").equals("Invalid code")) {
+                                    showErrorDialog("Invalid code.");
+                                    return; // Return here to avoid further processing
+                                }
+                            } catch (Exception e) {
+                                // Handle parsing exception
+                                Log.e("Error", "Error parsing error response: " + e.getMessage());
+                            }
                         }
-                        Log.e("Error", errorMessage);
-                        showErrorDialog("Error: " + errorMessage);
-                        handleServerError();
+
+                        // Handle other types of errors
+                        if (error.networkResponse != null && error.networkResponse.data != null) {
+                            try {
+                                // Parse the error body
+                                String errorBody = new String(error.networkResponse.data, "UTF-8");
+                                showErrorDialog("Server error: " + errorBody);
+                            } catch (Exception e) {
+                                // Handle parsing exception
+                                Log.e("Error", "Error parsing error response: " + e.getMessage());
+                            }
+                        } else {
+
+                            handleServerError();
+                        }
                     }
                 }) {
                     @Override
@@ -105,7 +140,7 @@ public class RequestCodeActivity extends AppCompatActivity implements View.OnCli
 
         } catch (Exception e) {
             Log.e("Error", e.getMessage());
-            showErrorDialog("Error: " + e.getMessage());
+
         }
     }
 
